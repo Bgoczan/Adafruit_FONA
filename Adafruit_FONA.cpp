@@ -70,14 +70,16 @@ uint8_t Adafruit_FONA::type(void) { return _type; }
  */
 bool Adafruit_FONA::begin(Stream &port) {
   mySerial = &port;
-
-  pinMode(_rstpin, OUTPUT);
-  digitalWrite(_rstpin, HIGH);
-  delay(10);
-  digitalWrite(_rstpin, LOW);
-  delay(100);
-  digitalWrite(_rstpin, HIGH);
-
+  if(_rstpin != 0)
+  {
+    pinMode(_rstpin, OUTPUT);
+    digitalWrite(_rstpin, HIGH);
+    delay(10);
+    digitalWrite(_rstpin, LOW);
+    delay(100);
+    digitalWrite(_rstpin, HIGH);
+  }
+  
   DEBUG_PRINTLN(F("Attempting to open comm with ATs"));
   // give 7 seconds to reboot
   int16_t timeout = 7000;
@@ -134,10 +136,11 @@ bool Adafruit_FONA::begin(Stream &port) {
     _type = FONA808_V2;
   } else if (prog_char_strstr(replybuffer, (prog_char *)F("SIM808 R13")) != 0) {
     _type = FONA808_V1;
+  } else if (prog_char_strstr(replybuffer, (prog_char *)F("A7670E")) != 0) {
+    _type = FONA7670_E;
   } else if (prog_char_strstr(replybuffer, (prog_char *)F("SIM800 R13")) != 0) {
     _type = FONA800L;
-  } else if (prog_char_strstr(replybuffer, (prog_char *)F("SIMCOM_SIM5320A")) !=
-             0) {
+  } else if (prog_char_strstr(replybuffer, (prog_char *)F("SIMCOM_SIM5320A")) != 0) {
     _type = FONA3G_A;
   } else if (prog_char_strstr(replybuffer, (prog_char *)F("SIMCOM_SIM5320E")) !=
              0) {
@@ -161,11 +164,15 @@ bool Adafruit_FONA::begin(Stream &port) {
     }
   }
 
+  sendCheckReply(F("AT+CFUN=1"), ok_reply);
+  
 #if defined(FONA_PREF_SMS_STORAGE)
   sendCheckReply(F("AT+CPMS=" FONA_PREF_SMS_STORAGE "," FONA_PREF_SMS_STORAGE
                    "," FONA_PREF_SMS_STORAGE),
                  ok_reply);
 #endif
+
+//  sendCheckReply(F("AT+CREG=1"), ok_reply);
 
   return true;
 }
@@ -181,6 +188,18 @@ bool Adafruit_FONA::begin(Stream &port) {
 bool Adafruit_FONA::setBaudrate(uint16_t baud) {
   return sendCheckReply(F("AT+IPREX="), baud, ok_reply);
 }
+
+// GSM power setting
+bool Adafruit_FONA::enableGSM(void)
+{
+  return sendCheckReply(F("AT+CFUN=1"), ok_reply);
+}
+
+bool Adafruit_FONA::disableGSM(void)
+{
+  return sendCheckReply(F("AT+CFUN=0"), ok_reply);
+}
+
 
 /********* Real Time Clock ********************************************/
 // This RTC setup isn't fully operational
@@ -638,7 +657,14 @@ uint8_t Adafruit_FONA::getCallStatus(void) {
  *
  * @return true: success, false: failure
  */
-bool Adafruit_FONA::hangUp(void) { return sendCheckReply(F("ATH0"), ok_reply); }
+bool Adafruit_FONA::hangUp(void) 
+{ 
+  if( _type == FONA7670_E)
+  {
+    return sendCheckReply(F("ATH"), ok_reply); 
+  }
+  return sendCheckReply(F("ATH0"), ok_reply); 
+}
 /**
  * @brief End the current call
  *
@@ -1083,7 +1109,7 @@ bool Adafruit_FONA::enableGPS(bool onoff) {
 
   // first check if its already on or off
 
-  if (_type == FONA808_V2) {
+  if ((_type == FONA808_V2) || (_type == FONA7670_E)) {
     if (!sendParseReply(F("AT+CGNSPWR?"), F("+CGNSPWR: "), &state))
       return false;
   } else {
@@ -1092,7 +1118,7 @@ bool Adafruit_FONA::enableGPS(bool onoff) {
   }
 
   if (onoff && !state) {
-    if (_type == FONA808_V2) {
+    if ((_type == FONA808_V2) || (_type == FONA7670_E)) {
       if (!sendCheckReply(F("AT+CGNSPWR=1"), ok_reply)) // try GNS command
         return false;
     } else {
@@ -1100,7 +1126,7 @@ bool Adafruit_FONA::enableGPS(bool onoff) {
         return false;
     }
   } else if (!onoff && state) {
-    if (_type == FONA808_V2) {
+    if ((_type == FONA808_V2) || (_type == FONA7670_E)) {
       if (!sendCheckReply(F("AT+CGNSPWR=0"), ok_reply)) // try GNS command
         return false;
     } else {

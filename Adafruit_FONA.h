@@ -17,6 +17,8 @@
 #define FONA3G_A 4
 #define FONA3G_E 5
 
+#define FONA7670_E 7
+
 // Set the preferred SMS storage.
 //   Use "SM" for storage on the SIM.
 //   Use "ME" for internal storage on the FONA chip
@@ -68,6 +70,10 @@ public:
 
   // FONA 3G requirements
   bool setBaudrate(uint16_t baud);
+
+  // GSM power setting
+  bool enableGSM(void);
+  bool disableGSM(void);
 
   // RTC
   bool enableRTC(uint8_t mode);
