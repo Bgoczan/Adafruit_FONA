@@ -1563,6 +1563,144 @@ bool Adafruit_FONA::getGPS(float *lat, float *lon, float *speed_kph,
   return true;
 }
 
+
+bool Adafruit_FONA::getGPS(String *time, float *lat, float *lon, float *speed_kph,
+                           float *heading, float *altitude) {
+
+  char gpsbuffer[120];
+
+  // we need at least a 2D fix
+  if (GPSstatus() < 2)
+    return false;
+
+  // grab the mode 2^5 gps csv from the sim808
+  uint8_t res_len = getGPS(32, gpsbuffer, 120);
+
+  // +CGNSSINFO:2,09,05,00,3113.330650,N,12121.262554,E,131117,091918.0,32.9,0.0,255.0,1.1,0.8,0.7
+  //           : ,  ,  ,  ,*          ,*,*           ,*,      ,*       ,*   ,*  ,*    ,   ,   ,               
+
+  // make sure we have a response
+  if (res_len == 0)
+    return false;
+  
+  // skip GNSS fix status
+  char *tok = strtok(gpsbuffer, ",");
+  if (!tok)
+    return false;
+
+  // skip GPS status
+  tok = strtok(NULL, ",");
+  if (!tok)
+    return false;
+
+  // skip Glonas status
+  tok = strtok(NULL, ",");
+  if (!tok)
+    return false;
+
+  // skip Beidu status
+  tok = strtok(NULL, ",");
+  if (!tok)
+    return false;
+
+  // grab the latitude
+  char *latp = strtok(gpsbuffer, ",");
+  if (!latp)
+    return false;
+
+  // grab latitude direction
+  char *latdir = strtok(NULL, ",");
+  if (!latdir)
+    return false;
+
+  // grab longitude
+  char *longp = strtok(NULL, ",");
+  if (!longp)
+    return false;
+
+  // grab longitude direction
+  char *longdir = strtok(NULL, ",");
+  if (!longdir)
+    return false;
+
+  double latitude = atof(latp);
+  double longitude = atof(longp);
+
+  // convert latitude from minutes to decimal
+  float degrees = floor(latitude / 100);
+  double minutes = latitude - (100 * degrees);
+  minutes /= 60;
+  degrees += minutes;
+
+  // turn direction into + or -
+  if (latdir[0] == 'S')
+    degrees *= -1;
+
+  *lat = degrees;
+
+  // convert longitude from minutes to decimal
+  degrees = floor(longitude / 100);
+  minutes = longitude - (100 * degrees);
+  minutes /= 60;
+  degrees += minutes;
+
+  // turn direction into + or -
+  if (longdir[0] == 'W')
+    degrees *= -1;
+
+  *lon = degrees;
+
+  // skip date
+  tok = strtok(NULL, ",");
+  if (!tok)
+    return false;
+
+  // grab time
+  char *timep = strtok(NULL, ",");
+  if (!timep)
+    return false;
+  *time=timep[0] + timep[1] + ':' + timep[3] + timep[4] + ':' + timep[5] + timep[6] + '\0';
+  
+  // no need to continue
+  if (altitude == NULL)
+    return true;
+
+
+  // grab altitude
+  char *altp = strtok(NULL, ",");
+  if (!altp)
+    return false;
+
+  *altitude = atof(altp);
+  
+  // we need at least a 3D fix for altitude
+  if (GPSstatus() < 3) *altitude = -999.999;
+
+  // only grab speed if needed
+  if (speed_kph != NULL) {
+
+    // grab the speed in knots
+    char *speedp = strtok(NULL, ",");
+    if (!speedp)
+      return false;
+
+    // convert to kph
+    *speed_kph = atof(speedp) * 1.852;
+  }
+
+  // only grab heading if needed
+  if (heading != NULL) {
+
+    // grab the speed in knots
+    char *coursep = strtok(NULL, ",");
+    if (!coursep)
+      return false;
+
+    *heading = atof(coursep);
+  }
+
+  return true;
+}
 /**
  * @brief Enable GPS NMEA output
 
